@@ -37,8 +37,6 @@ def train_model(model, train_iter, epoch):
         # cut-off unnecessary padding from target, and flatten
         # target = target[:, :torch.max(length).item()].contiguous().view(-1)
 
-        # print(logp[0,0:10,0:10])
-        # exit()
         target = target.contiguous().view(-1)
         logp = logp.view(-1, logp.size(2))
 
@@ -101,21 +99,29 @@ def train_model(model, train_iter, epoch):
     return total_epoch_loss/len(train_iter), total_epoch_acc/len(train_iter)
 
 def eval_model(model, val_iter):
+
     total_epoch_loss = 0
     total_epoch_acc = 0
+
     model.eval()
+
     with torch.no_grad():
         for idx, batch in enumerate(val_iter):
             text = batch.text[0]
+
             if (text.size()[0] is not 32):
                 continue
+
             target = batch.label
             target = torch.autograd.Variable(target).long()
+
             if torch.cuda.is_available():
                 text = text.cuda()
                 target = target.cuda()
+
             final_tokens, final_mean, final_logv, final_z, prediction = model(text)
             loss = loss_fn(prediction, target)
+
             num_corrects = (torch.max(prediction, 1)[1].view(target.size()).data == target.data).sum()
             acc = 100.0 * num_corrects/len(batch)
             total_epoch_loss += loss.item()
@@ -133,8 +139,10 @@ if __name__ == "__main__":
 
     # make dir
     save_model_path = "./bin/" + ts
-    os.makedirs(save_model_path)
+    os.mkdir(save_model_path)
+    
 
+    epochs = 1
     learning_rate = 2e-5
     batch_size = 32
     output_size = 2
@@ -145,18 +153,16 @@ if __name__ == "__main__":
     model = LSTMClassifier2(batch_size, output_size, hidden_size, vocab_size, embedding_length, word_embeddings)
     loss_fn = F.cross_entropy
 
-    for epoch in range(10):
+    for epoch in range(epochs):
         train_loss, train_acc = train_model(model, train_iter, epoch)
         val_loss, val_acc = eval_model(model, valid_iter)
         
         print(f'Epoch: {epoch+1:02}, Train Loss: {train_loss:.3f}, Train Acc: {train_acc:.2f}%, Val. Loss: {val_loss:3f}, Val. Acc: {val_acc:.2f}%')
 
         # save checkpoint
-        if split == 'train':
-            checkpoint_path = os.path.join(
-                save_model_path, "E%i.pytorch" % epoch)
-            torch.save(model.state_dict(), checkpoint_path)
-            print("Model saved at %s" % checkpoint_path)
+        checkpoint_path = "./bin/{}/E{}.pytorch".format(ts, epoch)
+        torch.save(model.state_dict(), checkpoint_path)
+        print("Model saved at %s" % checkpoint_path)
         
     test_loss, test_acc = eval_model(model, test_iter)
     print(f'Test Loss: {test_loss:.3f}, Test Acc: {test_acc:.2f}%')
@@ -175,9 +181,12 @@ if __name__ == "__main__":
     test_sen = torch.LongTensor(test_sen)
     test_tensor = Variable(test_sen, volatile=True)
     test_tensor = test_tensor.cuda()
+
     model.eval()
-    output = model(test_tensor, 1)
+
+    final_tokens, final_mean, final_logv, final_z, out = model(test_tensor, 1)
     out = F.softmax(output, 1)
+
     if (torch.argmax(out[0]) == 1):
         print ("Sentiment: Positive")
     else:
