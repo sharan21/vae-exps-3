@@ -55,8 +55,12 @@ class LSTMClassifier2(nn.Module):
 		# latent to initial hs for decoder
 		self.latent2hidden = nn.Linear(self.latent_size, self.hidden_size)
 
+		self.lstm2 = nn.LSTM(embedding_length, hidden_size)
+
 		# final hidden to output vocab
 		self.outputs2vocab = nn.Linear(self.hidden_size, self.vocab_size)
+
+		self.embedding_dropout = nn.Dropout(p=0.5)
 		
 	def forward(self, input_sentence, batch_size=None):
 	
@@ -77,18 +81,20 @@ class LSTMClassifier2(nn.Module):
 
 		input = self.word_embeddings(input_sentence) # embedded input of shape = (batch_size, num_sequences,  embedding_length)
 		input = input.permute(1, 0, 2) # input.size() = (num_sequences, batch_size, embedding_length)
+		
 		if batch_size is None:
 			h_0 = Variable(torch.zeros(1, self.batch_size, self.hidden_size).cuda()) # Initial hidden state of the LSTM
 			c_0 = Variable(torch.zeros(1, self.batch_size, self.hidden_size).cuda()) # Initial cell state of the LSTM
 		else:
 			h_0 = Variable(torch.zeros(1, batch_size, self.hidden_size).cuda())
 			c_0 = Variable(torch.zeros(1, batch_size, self.hidden_size).cuda())
+
+
 		output, (hidden, final_cell_state) = self.lstm(input, (h_0, c_0))
 		final_output = self.label(hidden[-1]) # final_hidden_state.size() = (1, batch_size, hidden_size) & final_output.size() = (batch_size, output_size)
 
 
 		#style component
-		# print(gu)
 		style_mean = self.hidden2stylemean(hidden) #calc latent mean 
 		style_logv = self.hidden2stylelogv(hidden) #calc latent variance
 		style_std = torch.exp(0.5 * style_logv) #find sd
@@ -104,6 +110,28 @@ class LSTMClassifier2(nn.Module):
 
 		content_z = to_var(torch.randn([self.batch_size, int(3*self.latent_size/4)])) #get a random vector
 		content_z = content_z * content_std + content_mean #compute datapoint
+
+		 #concat style and concat
+	
+		final_mean = torch.cat((style_mean[0], content_mean[0]), dim=1)
+		final_logv = torch.cat((style_logv[0], content_logv[0]), dim=1)
+		final_z = torch.cat((style_z[0], content_z[0]), dim=1)
+
+		hidden2 = self.latent2hidden(final_z)
+
+		# decoder input
+		#
+		input_embedding = self.embedding_dropout(input)
+		# packed_input = rnn_utils.pack_padded_sequence(input_embedding, sorted_lengths.data.tolist(), batch_first=True)
+
+		# decoder forward pass
+	
+		hidden2 = torch.unsqueeze(hidden2, dim=0)
+		outputs, _ = self.lstm2(input_embedding, (hidden2, c_0))
+
+		# print(in.shape)
+
+
 
 		
 		return final_output
