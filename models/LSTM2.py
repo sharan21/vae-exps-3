@@ -5,9 +5,11 @@ import torch.nn as nn
 from torch.autograd import Variable
 from torch.nn import functional as F
 
-class LSTMClassifier(nn.Module):
+from utils import to_var
+
+class LSTMClassifier2(nn.Module):
 	def __init__(self, batch_size, output_size, hidden_size, vocab_size, embedding_length, weights):
-		super(LSTMClassifier, self).__init__()
+		super(LSTMClassifier2, self).__init__()
 		
 		"""
 		Arguments
@@ -21,6 +23,7 @@ class LSTMClassifier(nn.Module):
 		
 		"""
 		
+		self.latent_size = 40
 		self.batch_size = batch_size
 		self.output_size = output_size
 		self.hidden_size = hidden_size
@@ -32,7 +35,28 @@ class LSTMClassifier(nn.Module):
 		self.lstm = nn.LSTM(embedding_length, hidden_size)
 		self.label = nn.Linear(hidden_size, output_size)
 
-        
+		 # hidden to style space
+		self.hidden2stylemean = nn.Linear(self.hidden_size, int(self.latent_size/4))
+		self.hidden2stylelogv = nn.Linear(self.hidden_size, int(self.latent_size/4))
+
+		# hidden to content space
+		self.hidden2contentmean = nn.Linear(self.hidden_size, int(3*self.latent_size/4))
+		self.hidden2contentlogv = nn.Linear(self.hidden_size, int(3*self.latent_size/4))
+
+		# classifiers
+		# self.content_classifier = nn.Linear(int(3*self.latent_size/4), self.content_bow_dim)
+		# self.style_classifier_1 = nn.Linear(int(latent_size/4), 10) # for correlating style space to sentiment
+		# self.style_classifier_2 = nn.Linear(10, 2) # for correlating style space to sentiment
+
+		# self.style_sigmoid = nn.ReLU()
+
+		# dsicrimimnator/adversaries
+
+		# latent to initial hs for decoder
+		self.latent2hidden = nn.Linear(self.latent_size, self.hidden_size)
+
+		# final hidden to output vocab
+		self.outputs2vocab = nn.Linear(self.hidden_size, self.vocab_size)
 		
 	def forward(self, input_sentence, batch_size=None):
 	
@@ -50,6 +74,7 @@ class LSTMClassifier(nn.Module):
 		"""
 		
 		''' Here we will map all the indexes present in the input sequence to the corresponding word vector using our pre-trained word_embedddins.'''
+
 		input = self.word_embeddings(input_sentence) # embedded input of shape = (batch_size, num_sequences,  embedding_length)
 		input = input.permute(1, 0, 2) # input.size() = (num_sequences, batch_size, embedding_length)
 		if batch_size is None:
@@ -58,7 +83,27 @@ class LSTMClassifier(nn.Module):
 		else:
 			h_0 = Variable(torch.zeros(1, batch_size, self.hidden_size).cuda())
 			c_0 = Variable(torch.zeros(1, batch_size, self.hidden_size).cuda())
-		output, (final_hidden_state, final_cell_state) = self.lstm(input, (h_0, c_0))
-		final_output = self.label(final_hidden_state[-1]) # final_hidden_state.size() = (1, batch_size, hidden_size) & final_output.size() = (batch_size, output_size)
+		output, (hidden, final_cell_state) = self.lstm(input, (h_0, c_0))
+		final_output = self.label(hidden[-1]) # final_hidden_state.size() = (1, batch_size, hidden_size) & final_output.size() = (batch_size, output_size)
+
+
+		#style component
+		# print(gu)
+		style_mean = self.hidden2stylemean(hidden) #calc latent mean 
+		style_logv = self.hidden2stylelogv(hidden) #calc latent variance
+		style_std = torch.exp(0.5 * style_logv) #find sd
+
+		style_z = to_var(torch.randn([self.batch_size, int(self.latent_size/4)])) #get a random vector
+		style_z = style_z * style_std + style_mean #compute datapoint
+
+		#content component
+
+		content_mean = self.hidden2contentmean(hidden) #calc latent mean 
+		content_logv = self.hidden2contentlogv(hidden) #calc latent variance
+		content_std = torch.exp(0.5 * content_logv) #find sd
+
+		content_z = to_var(torch.randn([self.batch_size, int(3*self.latent_size/4)])) #get a random vector
+		content_z = content_z * content_std + content_mean #compute datapoint
+
 		
 		return final_output
