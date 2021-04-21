@@ -85,7 +85,7 @@ def train_model(model, train_iter, epoch):
 
         ae_loss = (NLL_loss + KL_weight * KL_loss) / batch_size
 
-        # loss.backward(retain_graph = True)
+        loss.backward(retain_graph = True)
         ae_loss.backward()
         clip_gradient(model, 1e-1)
         optim.step()
@@ -122,45 +122,63 @@ def eval_model(model, val_iter):
             total_epoch_acc += acc.item()
 
     return total_epoch_loss/len(val_iter), total_epoch_acc/len(val_iter)
-	
 
-learning_rate = 2e-5
-batch_size = 32
-output_size = 2
-hidden_size = 256
-embedding_length = 300
 
-# model = LSTMClassifier(batch_size, output_size, hidden_size, vocab_size, embedding_length, word_embeddings)
-model = LSTMClassifier2(batch_size, output_size, hidden_size, vocab_size, embedding_length, word_embeddings)
-loss_fn = F.cross_entropy
+if __name__ == "__main__":
 
-for epoch in range(10):
-    train_loss, train_acc = train_model(model, train_iter, epoch)
-    val_loss, val_acc = eval_model(model, valid_iter)
-    
-    print(f'Epoch: {epoch+1:02}, Train Loss: {train_loss:.3f}, Train Acc: {train_acc:.2f}%, Val. Loss: {val_loss:3f}, Val. Acc: {val_acc:.2f}%')
-    
-test_loss, test_acc = eval_model(model, test_iter)
-print(f'Test Loss: {test_loss:.3f}, Test Acc: {test_acc:.2f}%')
+    # create dir name
+    ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
+    ts = ts.replace(':', '-')
+    ts = ts+'-lstm2'
 
-''' Let us now predict the sentiment on a single sentence just for the testing purpose. '''
-test_sen1 = "This is one of the best creation of Nolan. I can say, it's his magnum opus. Loved the soundtrack and especially those creative dialogues."
-test_sen2 = "Ohh, such a ridiculous movie. Not gonna recommend it to anyone. Complete waste of time and money."
+    # make dir
+    save_model_path = "./bin/" + ts
+    os.makedirs(save_model_path)
 
-test_sen1 = TEXT.preprocess(test_sen1)
-test_sen1 = [[TEXT.vocab.stoi[x] for x in test_sen1]]
+    learning_rate = 2e-5
+    batch_size = 32
+    output_size = 2
+    hidden_size = 256
+    embedding_length = 300
 
-test_sen2 = TEXT.preprocess(test_sen2)
-test_sen2 = [[TEXT.vocab.stoi[x] for x in test_sen2]]
+    # model = LSTMClassifier(batch_size, output_size, hidden_size, vocab_size, embedding_length, word_embeddings)
+    model = LSTMClassifier2(batch_size, output_size, hidden_size, vocab_size, embedding_length, word_embeddings)
+    loss_fn = F.cross_entropy
 
-test_sen = np.asarray(test_sen1)
-test_sen = torch.LongTensor(test_sen)
-test_tensor = Variable(test_sen, volatile=True)
-test_tensor = test_tensor.cuda()
-model.eval()
-output = model(test_tensor, 1)
-out = F.softmax(output, 1)
-if (torch.argmax(out[0]) == 1):
-    print ("Sentiment: Positive")
-else:
-    print ("Sentiment: Negative")
+    for epoch in range(10):
+        train_loss, train_acc = train_model(model, train_iter, epoch)
+        val_loss, val_acc = eval_model(model, valid_iter)
+        
+        print(f'Epoch: {epoch+1:02}, Train Loss: {train_loss:.3f}, Train Acc: {train_acc:.2f}%, Val. Loss: {val_loss:3f}, Val. Acc: {val_acc:.2f}%')
+
+        # save checkpoint
+        if split == 'train':
+            checkpoint_path = os.path.join(
+                save_model_path, "E%i.pytorch" % epoch)
+            torch.save(model.state_dict(), checkpoint_path)
+            print("Model saved at %s" % checkpoint_path)
+        
+    test_loss, test_acc = eval_model(model, test_iter)
+    print(f'Test Loss: {test_loss:.3f}, Test Acc: {test_acc:.2f}%')
+
+    ''' Let us now predict the sentiment on a single sentence just for the testing purpose. '''
+    test_sen1 = "This is one of the best creation of Nolan. I can say, it's his magnum opus. Loved the soundtrack and especially those creative dialogues."
+    test_sen2 = "Ohh, such a ridiculous movie. Not gonna recommend it to anyone. Complete waste of time and money."
+
+    test_sen1 = TEXT.preprocess(test_sen1)
+    test_sen1 = [[TEXT.vocab.stoi[x] for x in test_sen1]]
+
+    test_sen2 = TEXT.preprocess(test_sen2)
+    test_sen2 = [[TEXT.vocab.stoi[x] for x in test_sen2]]
+
+    test_sen = np.asarray(test_sen1)
+    test_sen = torch.LongTensor(test_sen)
+    test_tensor = Variable(test_sen, volatile=True)
+    test_tensor = test_tensor.cuda()
+    model.eval()
+    output = model(test_tensor, 1)
+    out = F.softmax(output, 1)
+    if (torch.argmax(out[0]) == 1):
+        print ("Sentiment: Positive")
+    else:
+        print ("Sentiment: Negative")
