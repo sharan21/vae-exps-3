@@ -128,10 +128,21 @@ class LSTMClassifier2(nn.Module):
 	
 		hidden2 = torch.unsqueeze(hidden2, dim=0)
 		outputs, _ = self.lstm2(input_embedding, (hidden2, c_0))
+		
+		outputs = outputs.permute(1, 0, 2) # input.size() = (num_sequences, batch_size, embedding_length)
 
-		# print(in.shape)
+		final_tokens = self.outputs2vocab(outputs)
 
+		print(final_tokens.shape)
 
+		exit()
 
 		
+
+
+		# exit()
+
+
+
+
 		return final_output
