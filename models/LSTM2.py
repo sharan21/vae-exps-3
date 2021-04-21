@@ -181,6 +181,7 @@ class LSTMClassifier2(nn.Module):
 			# hidden = hidden.view(self.hidden_factor, batch_size, self.hidden_size)
 
 		hidden = hidden.unsqueeze(0)
+		# hidden = hidden.unsqueeze(0)
 
 		# required for dynamic stopping of sentence generation
 		sequence_idx = torch.arange(0, batch_size, out=self.tensor()).long()  # all idx of batch
@@ -201,9 +202,11 @@ class LSTMClassifier2(nn.Module):
 
 			input_sequence = input_sequence.unsqueeze(1)
 
-			input_embedding = self.embedding(input_sequence)
+			input_embedding = self.word_embeddings(input_sequence)
 
-			output, hidden = self.lstm2(input_embedding, hidden)
+			c_0 = Variable(torch.zeros(1, batch_size, self.hidden_size).cuda())
+
+			output, (hidden, _) = self.lstm2(input_embedding, (hidden, c_0))
 
 			logits = self.outputs2vocab(output)
 
@@ -219,6 +222,10 @@ class LSTMClassifier2(nn.Module):
 			# update local running sequences
 			running_mask = (input_sequence != self.eos_idx).data
 			running_seqs = running_seqs.masked_select(running_mask)
+
+			print(type(hidden))
+			print(hidden[0].shape)
+			# exit()
 
 			# prune input and hidden state according to local update
 			if len(running_seqs) > 0:

@@ -8,7 +8,7 @@ import torch.optim as optim
 import numpy as np
 
 from models.LSTM2 import LSTMClassifier2
-
+from utils import *
 
 
 def main():
@@ -19,6 +19,8 @@ def main():
     output_size = 2
     hidden_size = 256
     embedding_length = 300
+
+    num_samples = 1
 
     TEXT, vocab_size, word_embeddings, train_iter, valid_iter, test_iter = load_data.load_dataset()
 
@@ -37,19 +39,23 @@ def main():
 
     
 
-    samples, z = model.inference(n=args.num_samples)
+    samples, z = model.inference(n=num_samples)
 
-    exit()
+    
 
     print('----------SAMPLES----------')
-    print(*idx2word(samples, i2w=i2w, pad_idx=w2i['<pad>']), sep='\n')
+    print(*idx2word(samples, i2w=TEXT.vocab.itos, pad_idx=model.pad_idx), sep='\n')
+    exit()
 
-    z1 = torch.randn([args.latent_size]).numpy()
-    z2 = torch.randn([args.latent_size]).numpy()
+    z1 = torch.randn([model.latent_size]).numpy()
+    z2 = torch.randn([model.latent_size]).numpy()
+
     z = to_var(torch.from_numpy(interpolate(start=z1, end=z2, steps=8)).float())
+
     samples, _ = model.inference(z=z)
+
     print('-------INTERPOLATION-------')
-    print(*idx2word(samples, i2w=i2w, pad_idx=w2i['<pad>']), sep='\n')
+    print(*idx2word(samples, i2w=TEXT.vocab.itos, pad_idx=model.pad_idx), sep='\n')
 
 
 if __name__ == '__main__':
