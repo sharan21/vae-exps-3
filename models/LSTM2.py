@@ -22,7 +22,12 @@ class LSTMClassifier2(nn.Module):
 		weights : Pre-trained GloVe word_embeddings which we will use to create our word_embedding look-up table 
 		
 		"""
+		self.tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
+		self.pad_idx = 1
+		self.sos_idx = 0
+		self.eos_idx = 0
 		
+		self.max_sequence_length = 70
 		self.latent_size = 40
 		self.batch_size = batch_size
 		self.output_size = output_size
@@ -142,3 +147,86 @@ class LSTMClassifier2(nn.Module):
 
 
 		return final_tokens, final_mean, final_logv, final_z, style_preds
+
+	def _sample(self, dist, mode='greedy'):
+
+		if mode == 'greedy':
+			_, sample = torch.topk(dist, 1, dim=-1)
+		sample = sample.reshape(-1)
+
+		return sample
+	
+	def _save_sample(self, save_to, sample, running_seqs, t):
+		# select only still running
+		running_latest = save_to[running_seqs]
+		# update token at position t
+		running_latest[:,t] = sample.data
+		# save back
+		save_to[running_seqs] = running_latest
+
+		return save_to
+
+	def inference(self, n = 4, z = None):
+
+		if z is None:
+			batch_size = n
+			z = to_var(torch.randn([batch_size, self.latent_size]))
+		else:
+			batch_size = z.size(0)
+
+		hidden = self.latent2hidden(z)
+
+		# if self.bidirectional or self.num_layers > 1:
+			# unflatten hidden state
+			# hidden = hidden.view(self.hidden_factor, batch_size, self.hidden_size)
+
+		hidden = hidden.unsqueeze(0)
+
+		# required for dynamic stopping of sentence generation
+		sequence_idx = torch.arange(0, batch_size, out=self.tensor()).long()  # all idx of batch
+		# all idx of batch which are still generating
+		sequence_running = torch.arange(0, batch_size, out=self.tensor()).long()
+		sequence_mask = torch.ones(batch_size, out=self.tensor()).bool()
+		# idx of still generating sequences with respect to current loop
+		running_seqs = torch.arange(0, batch_size, out=self.tensor()).long()
+
+		generations = self.tensor(batch_size, self.max_sequence_length).fill_(self.pad_idx).long()
+
+		t = 0
+
+		while t < self.max_sequence_length and len(running_seqs) > 0:
+
+			if t == 0:
+				input_sequence = to_var(torch.Tensor(batch_size).fill_(self.sos_idx).long())
+
+			input_sequence = input_sequence.unsqueeze(1)
+
+			input_embedding = self.embedding(input_sequence)
+
+			output, hidden = self.lstm2(input_embedding, hidden)
+
+			logits = self.outputs2vocab(output)
+
+			input_sequence = self._sample(logits)
+
+			# save next input
+			generations = self._save_sample(generations, input_sequence, sequence_running, t)
+
+			# update gloabl running sequence
+			sequence_mask[sequence_running] = (input_sequence != self.eos_idx)
+			sequence_running = sequence_idx.masked_select(sequence_mask)
+
+			# update local running sequences
+			running_mask = (input_sequence != self.eos_idx).data
+			running_seqs = running_seqs.masked_select(running_mask)
+
+			# prune input and hidden state according to local update
+			if len(running_seqs) > 0:
+				input_sequence = input_sequence[running_seqs]
+				hidden = hidden[:, running_seqs]
+
+				running_seqs = torch.arange(0, len(running_seqs), out=self.tensor()).long()
+
+			t += 1
+
+		return generations, z

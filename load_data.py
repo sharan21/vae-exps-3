@@ -45,5 +45,8 @@ def load_dataset(test_sen=None):
     # train_iter, test_iter = datasets.IMDB.iters(batch_size=32)
 
     vocab_size = len(TEXT.vocab)
+    print(TEXT.vocab.stoi["<eos>"])
+    print(TEXT.vocab.stoi["<sos>"])
+    exit(0)
 
     return TEXT, vocab_size, word_embeddings, train_iter, valid_iter, test_iter

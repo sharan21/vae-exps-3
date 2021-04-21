@@ -35,9 +35,12 @@ def main():
     
     model.eval()
 
-    exit()
+    
 
     samples, z = model.inference(n=args.num_samples)
+
+    exit()
+
     print('----------SAMPLES----------')
     print(*idx2word(samples, i2w=i2w, pad_idx=w2i['<pad>']), sep='\n')
 
