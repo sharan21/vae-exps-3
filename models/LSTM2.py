@@ -91,7 +91,7 @@ class LSTMClassifier2(nn.Module):
 
 
 		output, (hidden, final_cell_state) = self.lstm(input, (h_0, c_0))
-		final_output = self.label(hidden[-1]) # final_hidden_state.size() = (1, batch_size, hidden_size) & final_output.size() = (batch_size, output_size)
+		style_preds = self.label(hidden[-1]) # final_hidden_state.size() = (1, batch_size, hidden_size) & final_output.size() = (batch_size, output_size)
 
 
 		#style component
@@ -133,16 +133,5 @@ class LSTMClassifier2(nn.Module):
 
 		final_tokens = self.outputs2vocab(outputs)
 
-		print(final_tokens.shape)
 
-		exit()
-
-		
-
-
-		# exit()
-
-
-
-
-		return final_output
+		return final_tokens, final_mean, final_logv, final_z, style_preds
