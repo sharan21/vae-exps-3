@@ -36,6 +36,9 @@ def train_model(model, train_iter, epoch):
 
         # cut-off unnecessary padding from target, and flatten
         # target = target[:, :torch.max(length).item()].contiguous().view(-1)
+
+        # print(logp[0,0:10,0:10])
+        # exit()
         target = target.contiguous().view(-1)
         logp = logp.view(-1, logp.size(2))
 
@@ -75,18 +78,22 @@ def train_model(model, train_iter, epoch):
         final_tokens, final_mean, final_logv, final_z, prediction = model(text)
         loss = loss_fn(prediction, target) #classification loss
         
-        # NLL_loss, KL_loss, KL_weight = loss_fn_2(final_tokens, target, final_mean, final_logv, "logistic", step, 0.0025, 2500)
+        NLL_loss, KL_loss, KL_weight = loss_fn_2(final_tokens, text, final_mean, final_logv, "logistic", steps, 0.0025, 2500)
 
         num_corrects = (torch.max(prediction, 1)[1].view(target.size()).data == target.data).float().sum()
         acc = 100.0 * num_corrects/len(batch)
 
-        loss.backward()
+        ae_loss = (NLL_loss + KL_weight * KL_loss) / batch_size
+
+        # loss.backward(retain_graph = True)
+        ae_loss.backward()
         clip_gradient(model, 1e-1)
         optim.step()
         steps += 1
         
         if steps % 100 == 0:
             print (f'Epoch: {epoch+1}, Idx: {idx+1}, Training Loss: {loss.item():.4f}, Training Accuracy: {acc.item(): .2f}%')
+            print("nll loss: {}, kl loss: {}, kl weight: {}".format(NLL_loss, KL_loss, KL_weight))
         
         total_epoch_loss += loss.item()
         total_epoch_acc += acc.item()

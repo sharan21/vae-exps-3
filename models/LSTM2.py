@@ -131,7 +131,14 @@ class LSTMClassifier2(nn.Module):
 		
 		outputs = outputs.permute(1, 0, 2) # input.size() = (num_sequences, batch_size, embedding_length)
 
+		
 		final_tokens = self.outputs2vocab(outputs)
+		# print(final_tokens[0, 0:10, 0:10])
+		
+		final_tokens = nn.functional.log_softmax(final_tokens, dim = 2)
+		final_tokens = torch.exp(final_tokens)
+		# print(final_tokens[0, 0, :].sum())
+		# exit()
 
 
 		return final_tokens, final_mean, final_logv, final_z, style_preds
