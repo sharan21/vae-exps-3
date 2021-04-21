@@ -83,7 +83,7 @@ def train_model(model, train_iter, epoch):
 
         ae_loss = (NLL_loss + KL_weight * KL_loss) / batch_size
 
-        loss.backward(retain_graph = True)
+        # loss.backward(retain_graph = True)
         ae_loss.backward()
         clip_gradient(model, 1e-1)
         optim.step()
@@ -142,7 +142,7 @@ if __name__ == "__main__":
     os.mkdir(save_model_path)
     
 
-    epochs = 1
+    epochs = 10
     learning_rate = 2e-5
     batch_size = 32
     output_size = 2

@@ -13,7 +13,7 @@ from utils import *
 
 def main():
 
-    load_checkpoint = "./bin/2021-Apr-21-16-59-38-lstm2/E0.pytorch"
+    load_checkpoint = "./bin/2021-Apr-21-20-53-26-lstm2/E9.pytorch"
 
     batch_size = 32
     output_size = 2
